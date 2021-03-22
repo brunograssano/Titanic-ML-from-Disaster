@@ -29,10 +29,13 @@ def expandFare(titanic_df):
     titanic_df["Individual fare"] = titanic_df["Fare"] / titanic_df["Ticket size"]
     
 def renameDataCategories(titanic_df):
+    titanic_df["Economic status"] = titanic_df["Economic status"].astype("category")
     new_economic_status_names = {1:"Upper",2:"Middle",3:"Lower"}
     titanic_df["Economic status"].cat.rename_categories(new_economic_status_names,inplace=True)
+    titanic_df["Embarked"] = titanic_df["Embarked"].astype("category")
     new_port_names = {"C":"Cherbourg","Q":"Queenstown","S":"Southhampton"}
     titanic_df["Embarked"].cat.rename_categories(new_port_names,inplace = True)
+    titanic_df["Sex"] = titanic_df["Sex"].astype("category")
     new_sex = {"male":"Male","female":"Female"}
     titanic_df["Sex"].cat.rename_categories(new_sex,inplace = True)
     
@@ -43,9 +46,15 @@ def fillMissingValues(titanic_df):
     titanic_df['Surname'] = titanic_df['Name'].str.split(', ', expand=True)[0]
     titanic_df['Title'] =  titanic_df['Name'].str.split(', ', expand=True)[1].str.split('. ', expand=True)[0]
     
+    title_count = titanic_df["Title"].value_counts()
+    uncommon_titles = title_count[titanic_df["Title"]] < 8
+    uncommon_titles.index = titanic_df.index
+    
     null_age = titanic_df["Age"].isnull()
     
     titanic_df["Completed age"] = null_age
+    is_ms = titanic_df["Title"] == "Ms"
+    titanic_df.loc[is_ms,"Title"] = "Miss"
     
     age_by_title = titanic_df.groupby(by="Title")["Age"].agg("mean")
     
@@ -58,11 +67,21 @@ def fillMissingValues(titanic_df):
     titanic_df.loc[uncommon_titles,"Title"] = "Other"
     titanic_df['Title'] = titanic_df['Title'].astype("category")
     
+    null_fare = titanic_df["Fare"].isnull()
+    fare_by_class = titanic_df.groupby(by="Economic status")["Fare"].agg("mean")
+    fare_for_nan = fare_by_class[titanic_df.loc[null_fare,"Economic status"]]
+    fare_for_nan.index = titanic_df[null_fare].index
+    titanic_df.loc[null_fare,"Fare"] = fare_for_nan
+    
 
     
 def prepareTestDataset(test_df):
-    expandFare(test_df)
+    renamed_columns = {"Pclass":"Economic status","SibSp":"Number of siblings/spouses","Parch":"Number of parents/children"}
+    test_df.rename(columns=renamed_columns,inplace = True)
+    test_df.set_index(test_df["PassengerId"],inplace = True)
+    test_df.drop(columns="PassengerId",inplace=True)
     fillMissingValues(test_df)
+    expandFare(test_df)
     createNewFeatures(test_df)
     renameDataCategories(test_df)
     
